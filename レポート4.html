@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <style>
+        #equal_box {
+            float: left;
+        }
+
+        .box {
+            width: 250px;
+            height: 300px;
+            overflow: scroll;
+            border: solid 1px black;
+        }
+
+        #equation {
+            float: left;
+            border: solid 1px;
+            margin: 30px;
+        }
+    </style>
+</head>
+
+<body>
+    <form id="conditions">
+        関数：<input type="number" id="tilt2_val" min="0" max="1" value="1">X^2+
+        <input type="text" id="tilt1_val" value="0">X +
+        <input type="text" id="scrap_val" value="-4"><br>
+        <font color="red">aの値：</font><input type="number" min="-15" max="15" id="min_val" value="-5">
+        <font color="blue">bの値：</font><input type="number" min="-15" max="15" id="max_val" value="5"><br>
+        許容誤差：1.0×10^-<input type="number" min="1" max="15" id="error_val" value = "3"><br>
+        <input type="button" id="change_val" value="変更">
+    </form><br>
+    <section id="equal_box">
+        <button id="dicho">二分法</button>
+        <button id="reset" onClick="reset(dicho_box)">リセット</button>
+        <div class="box" id="dicho_box"></div>
+        <button id="newton">ニュートン法</button>
+        <button id="reset" onClick="reset(newton_box)">リセット</button>
+        <div class="box" id="newton_box"></div>
+    </section>
+    <canvas width="600" height="600" id="equation"></canvas>
+
+</body>
+<script>
+    var canvas = document.getElementById('equation');
+    if (canvas.getContext) { var ctx = canvas.getContext('2d'); }
+
+    var target = document.getElementById('equation');
+    var t_width = target.clientWidth;
+    var t_height = target.clientHeight;
+    var origin_x = t_width / 2;
+    var origin_y = t_height / 2;
+    var scale = 15;
+    var x_interval = origin_x / scale;
+    var y_interval = origin_y / scale;
+    var ESP = .001;
+
+    var a = -5;
+    var b = 5;
+    var line_a = a;
+    var line_b = b;
+    var tilt2 = 1;
+    var tilt1 = 0;
+    var scrap = -4;
+
+    var dicho_box = document.getElementById("dicho_box");
+    var newton_box = document.getElementById("newton_box");
+
+    var dicho = null;
+    var newto = null;
+
+    function draw_XY() {        //座標描画
+        ctx.beginPath();
+        ctx.fillStyle = 'rgb(200,200,200)';
+        ctx.fillRect(0, origin_y, t_width, 2);
+        ctx.fillRect(origin_x, 0, 2, t_height);
+        for (i = 0; i < scale * 2 + 1; i++) {
+            ctx.fillRect(x_interval * i, origin_y, 2, 10);
+            ctx.fillRect(origin_x - 10, y_interval * i, 10, 2);
+            ctx.font = '15px Arial';
+            if (i == 4) {
+                ctx.fillText('-10', x_interval * i + 10, origin_y + 22);
+                ctx.fillText('10', origin_x - 25, y_interval * i + 25);
+            }
+            if (i == 9) {
+                ctx.fillText('-5', x_interval * i + 15, origin_y + 22);
+                ctx.fillText('5', origin_x - 25, y_interval * i + 25);
+            }
+            if (i == 14) {
+                ctx.fillText('0', x_interval * i + 10, origin_y + 15);
+            }
+            if (i == 19) {
+                ctx.fillText('5', x_interval * i + 15, origin_y + 22);
+                ctx.fillText('-5', origin_x - 25, y_interval * i + 25);
+            }
+            if (i == 24) {
+                ctx.fillText('10', x_interval * i + 10, origin_y + 22);
+                ctx.fillText('-10', origin_x - 30, y_interval * i + 25);
+            }
+        }
+        ctx.closePath();
+    }
+    function draw_line(line_c) {        //線分描画
+        ctx.beginPath();
+        var min_line = line_a + scale;
+        var max_line = line_b + scale;
+        ctx.fillStyle = 'rgba(250,0,0,0.4)';
+        ctx.fillRect(min_line * x_interval, 0, 2, t_height);
+        ctx.fillStyle = 'rgba(0,0,250,0.4)';
+        ctx.fillRect(max_line * x_interval, 0, 2, t_height);
+        if (line_c) {
+            var middle_line = line_c + scale;
+            ctx.fillStyle = 'rgba(250, 0, 250,0.4)';
+            ctx.fillRect(middle_line * x_interval, 0, 2, t_height);
+        }
+        ctx.closePath();
+    }
+
+    function draw_func() {      //関数描画
+        ctx.strokeStyle = 'rgb(0,0,0)';
+        ctx.lineWidth = 1;
+        var start = func(-scale);
+        var end = func(scale);
+        if (tilt2 == 0) {
+            ctx.beginPath();
+            ctx.moveTo((-scale + scale) * x_interval, (scale - start) * y_interval);
+            ctx.lineTo((scale + scale) * x_interval, (scale - end) * y_interval);
+            ctx.stroke();
+        } else {
+            var apex_x = - tilt1 / 2 * tilt2;
+            var apex_y = (-(tilt1 ** 2) + 4 * tilt2 * scrap) / 4 * tilt2;
+            ctx.beginPath();
+            ctx.moveTo((-scale + scale) * x_interval, (scale - start) * y_interval);
+            ctx.quadraticCurveTo((apex_x + scale) * x_interval, (240 - apex_y) * y_interval, (scale + scale) * x_interval, (scale - end) * y_interval);
+            ctx.stroke();
+        }
+    }
+
+    function draw_all(line_c) {         //描画統括
+        ctx.clearRect(0, 0, t_width, t_height);
+        draw_XY();
+        draw_line(line_c);
+        draw_func();
+    }
+    draw_all();
+
+    document.getElementById('change_val').addEventListener('click', function () {       //初期値設定
+        if (dicho == null && newto == null) {
+            var tmp_tilt2 = Number(document.getElementById('tilt2_val').value);
+            var tmp_tilt1 = Number(document.getElementById('tilt1_val').value);
+            var tmp_scrap = Number(document.getElementById('scrap_val').value);
+            if (tmp_tilt2 != NaN) tilt2 = tmp_tilt2;
+            if (tmp_tilt1 != NaN) tilt1 = tmp_tilt1;
+            if (tmp_scrap != NaN) scrap = tmp_scrap;
+            var tmp_min = Number(document.getElementById('min_val').value);
+            var tmp_max = Number(document.getElementById('max_val').value);
+            if (tmp_min < tmp_max) {
+                if(-15 <= tmp_min && tmp_min <= 15) a = line_a = tmp_min;
+                else{
+                    alert("aの値が許容範囲外です。");
+                }
+                if(-15 <= tmp_max && tmp_max <= 15) b = line_b = tmp_max;
+                else{
+                    alert("bの値が許容範囲外です。");
+                }
+                draw_all();
+            } else {
+                alert('不正な入力');
+            }
+            var tmp_error = Number(document.getElementById('error_val').value)
+            if(0 < tmp_error && tmp_error < 15) ESP = 1.0 * (10 ** (-tmp_error));
+            else alert("誤差の値が許容範囲外です。")
+        }
+    });
+
+    document.getElementById('dicho').addEventListener('click', function () {        //二分法制御
+        if (dicho == null && newto == null) {
+            reset(dicho_box);
+            Dichotomy();
+        }
+    });
+    document.getElementById('newton').addEventListener('click', function(){         //ニュートン法制御
+        if (dicho == null && newto == null) {
+            reset(newton_box);
+            Newton();
+        }
+    });
+
+    function reset(target) {        //リセット
+        if (dicho == null && newto == null) {
+            line_a = a; 
+            line_b = b;
+            target.innerHTML = "";
+            draw_all();
+        }
+    }
+
+    function func(x) {      //関数
+        return tilt2 * x ** 2 + tilt1 * x + scrap;
+    }
+
+    function func_z(x){     //導関数
+        return 2 * tilt2 * x + tilt1;
+    }
+
+    function Dichotomy() {      //二分法計算
+        var line_c = null;
+        var recipro = 1 / ESP
+        var calc_num = 0; 
+        dicho = setInterval(function () {
+            if (line_c != null) {
+                if ((func(line_c) * func(line_a)) < 0) line_b = line_c;
+                else if ((func(line_c) * func(line_a)) == 0) line_a = line_b = line_c;
+                else line_a = line_c;
+                draw_all();
+                dicho_box.insertAdjacentHTML('beforeend',
+                    '<div>a=' + Math.round(line_a * recipro) / recipro + 'b=' + Math.round(line_b * recipro) / recipro + '</div>');
+                if (Math.abs(line_a - line_b) < ESP) {
+                    clearInterval(dicho);
+                    dicho_box.insertAdjacentHTML('beforeend',
+                        '<div>計算回数：'+calc_num+'</div>');
+                    dicho = null;
+                }
+                line_c = null;
+            } else {
+                line_c = (line_a + line_b) / 2.0;
+                draw_all(line_c);
+                calc_num++;
+            }
+        }, 100);
+    }
+
+    function Newton() {     //ニュートン法計算
+        var line_c = null;
+        var recipro = 1 / ESP
+        var calc_num = 0;
+        newto = setInterval(function(){
+            if(line_c != null){
+                newton_box.insertAdjacentHTML('beforeend',
+                    '<div>a=' + Math.round(line_a * recipro) / recipro + 'c=' + Math.round(line_c * recipro) / recipro + '</div>');
+                if(Math.abs(line_a - line_c) < ESP){
+                    clearInterval(newto);
+                    newton_box.insertAdjacentHTML('beforeend',
+                        '<div>計算回数：'+calc_num+'</div>');
+                    newto = null;
+                }else{
+                    line_a = line_c;
+                }
+                draw_all();
+                line_c = null;
+            }else{
+                line_c = line_a - func(line_a) / func_z(line_a);
+                draw_all(line_c);
+                calc_num++;
+            }
+        }, 100);
+    }
+</script>
+
+</html>
